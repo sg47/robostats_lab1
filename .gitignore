@@ -49,3 +49,12 @@ dry/install_isolated
 wet/src
 wet/build
 wet/devel
+
+*.aux
+*.log
+*.blg
+*.bbl
+*.out
+*.pdfsync
+
+report/main.pdf
