@@ -9,3 +9,7 @@ frame_id:
   base: robot
   odom: odom
   laser: laser
+files:
+  data: robotdata1.log
+  map: wean.dat
+  path: /home/johnyao/Dropbox/Graduate_Coursework/RoboStats/robostats_lab1/
