@@ -16,6 +16,11 @@
 
 #include <boost/variant.hpp>
 
+#define MAP_RESOLUTION  0.1   // grid cell width (m)
+#define MAP_WIDTH       800   // (x_max - x_min)/resolution
+#define MAP_HEIGHT      800   // (y_max - y_min)/resolution
+
+
 class ParticleFilter
 {
 public:
@@ -23,6 +28,11 @@ public:
 
   bool initialize(const ros::NodeHandle& n);
 
+  int getOccValueAtXY(const double x, const double y);
+
+  void getIndiciesFromXY(const double x, const double y,
+                         unsigned int& row, unsigned int& col);
+  
 private:
   bool loadParameters(const ros::NodeHandle& n);
   bool registerCallbacks(const ros::NodeHandle& n);
@@ -34,7 +44,7 @@ private:
      arma::vec::fixed<180> ranges;
   } laser_data_t;
 
-  arma::mat::fixed<800,800> occ_grid_matrix;
+  arma::mat::fixed<MAP_HEIGHT,MAP_WIDTH> occ_grid_matrix;
   nav_msgs::OccupancyGrid occ_grid_msg;
   std::map <double, boost::variant<laser_data_t, arma::vec3> > stampedData;
 

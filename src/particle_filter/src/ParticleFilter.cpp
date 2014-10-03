@@ -173,12 +173,27 @@ void ParticleFilter::publishMap(const ros::TimerEvent& te)
   occ_grid_msg.header.stamp = ros::Time::now();
   occ_grid_msg.header.frame_id = "world";
   occ_grid_msg.info.resolution = 10;
-  occ_grid_msg.info.width = 800;
-  occ_grid_msg.info.height = 800;
+  occ_grid_msg.info.width = MAP_WIDTH;
+  occ_grid_msg.info.height = MAP_HEIGHT;
 
   map_pub.publish(occ_grid_msg);
   cout << "published map" << endl;
+}
 
+
+int ParticleFilter::getOccValueAtXY(const double x, const double y)
+{
+  unsigned int row, col;
+  getIndiciesFromXY(x, y, row, col);
+  return occ_grid_matrix(row,col);
+}
+
+void ParticleFilter::getIndiciesFromXY(const double x, const double y,
+                                       unsigned int& row, unsigned int& col)
+{
+  // TODO: check whether cells are corner aligned or center aligned, x-y alignment
+  col = floor(x/MAP_RESOLUTION);
+  row = floor(y/MAP_RESOLUTION);
 }
 
 
