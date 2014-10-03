@@ -4,3 +4,8 @@ algorithm:
     dx: 0.02
     dy: 0.02
     dyaw: 0.03
+frame_id:
+  fixed: world
+  base: robot
+  odom: odom
+  laser: laser
