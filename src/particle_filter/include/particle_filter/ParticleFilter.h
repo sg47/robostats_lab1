@@ -12,6 +12,8 @@
 #include <string>
 
 #include <ros/ros.h>
+#include <nav_msgs/OccupancyGrid.h>
+
 #include <boost/variant.hpp>
 
 class ParticleFilter
@@ -30,12 +32,18 @@ private:
      arma::vec3 robot_pose;
      arma::vec3 laser_pose;
      arma::vec::fixed<180> ranges;
-     laser_data(const arma::vec3& rp, const arma::vec3& lp,
-                const arma::vec::fixed<180> r) : robot_pose(rp),
-                laser_pose(lp), ranges(r) {}
   } laser_data_t;
 
+  arma::mat::fixed<800,800> occ_grid_matrix;
+  nav_msgs::OccupancyGrid occ_grid_msg;
   std::map <double, boost::variant<laser_data_t, arma::vec3> > stampedData;
+
+  ros::Publisher map_pub;
+  ros::Timer drawmap_timer;
+  
+  bool loadData();
+  bool loadMap();
+  void publishMap(const ros::TimerEvent& te);
 
 };
 

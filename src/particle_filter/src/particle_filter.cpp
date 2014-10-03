@@ -16,5 +16,7 @@ int main (int argc, char **argv)
   ParticleFilter pf;
   pf.initialize(n);
 
+  ros::spin();
+  
   return 0;
 }
