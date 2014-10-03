@@ -1,0 +1,6 @@
+algorithm:
+  num_particles: 1000
+  sigma:
+    dx: 0.02
+    dy: 0.02
+    dyaw: 0.03
