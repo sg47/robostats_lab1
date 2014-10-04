@@ -5,7 +5,7 @@
 #include <numeric>
 #include <string>
 
-#include<boost/tokenizer.hpp>
+#include <boost/tokenizer.hpp>
 #include <boost/random/uniform_real.hpp>
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/variate_generator.hpp>
@@ -67,7 +67,7 @@ void ParticleFilter::run()
     if (iter->which() == 0)
     {
       laser_data_t ld = boost::get<laser_data_t>(*iter);
-      cout << "got laser at " << ld.robot_pose.t() << endl;
+      correctionUpdate(ld.ranges);
     }
     else
     {
@@ -85,8 +85,6 @@ void ParticleFilter::run()
 
 bool ParticleFilter::loadParameters(const ros::NodeHandle& n)
 {
-  std::cout << "Hello World.. map" << std::endl;
-
   if (!pu::get("algorithm/num_particles", num_particles)) return false;
   if (!pu::get("algorithm/sigma/dx", sigma_dx)) return false;
   if (!pu::get("algorithm/sigma/dy", sigma_dy)) return false;
@@ -168,7 +166,6 @@ void ParticleFilter::initializeParticles()
     p.pose << x << y << yaw_rand();
     particle_bag.push_back(p);
   }
-  printAllParticles("all particles");
 }
 
 bool ParticleFilter::loadData(const std::string& data_path)
@@ -387,6 +384,21 @@ void ParticleFilter::processUpdate(const arma::vec3& u)
   }
 }
 
+void ParticleFilter::correctionUpdate(const arma::vec::fixed<180>& ranges)
+{
+  std::vector <particle_t> propagated_particles;
+
+  for (unsigned int i = 0; i < particle_bag.size(); i++)
+  {
+
+    for (unsigned int j = 0; j < 180; j++)
+    {
+
+
+    }
+  }
+
+}
 
 void ParticleFilter::printAllParticles(const std::string& prefix) const
 {

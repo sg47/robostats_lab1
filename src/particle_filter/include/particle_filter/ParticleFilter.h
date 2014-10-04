@@ -68,6 +68,7 @@ private:
   void initializeParticles();
   arma::vec3 processDynamics(const arma::vec3& pose_in, const arma::vec3& pose_delta);
   void processUpdate(const arma::vec3& u);
+  void correctionUpdate(const arma::vec::fixed<180>& ranges);
 
   // geometry utility functions
   arma::vec3 getPoseDelta(const arma::vec3& before, const arma::vec3& after);
