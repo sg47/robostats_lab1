@@ -50,7 +50,6 @@ private:
   {
     double weight;
     arma::vec3 pose;
-    particle(double w, const arma::vec3& p) : weight(w), pose(p) {}
     void print() const
     {
        printf("particle w = %8.5g \t x = %8.5g \t y = %8.5g \t psi = %8.5g \n",
@@ -71,8 +70,7 @@ private:
   void processUpdate(const arma::vec3& u);
 
   // geometry utility functions
-  void getPoseDelta(const arma::vec3& before, const arma::vec3& after,
-                    arma::vec3& delta);
+  arma::vec3 getPoseDelta(const arma::vec3& before, const arma::vec3& after);
   double unroll(double x);
   double normalize_angle(double x);
   double shortest_angular_distance(double from, double to);
@@ -115,7 +113,7 @@ private:
   // a container for all particles
   std::vector <particle_t> particle_bag;
 
-  boost::mt19937 rng;
+  arma::vec3 prev_odom;
 
   // publishers
   ros::Publisher map_pub;

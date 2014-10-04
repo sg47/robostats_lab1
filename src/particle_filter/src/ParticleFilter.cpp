@@ -38,10 +38,6 @@ bool ParticleFilter::initialize(const ros::NodeHandle& n)
 
   initializeParticles();
 
-  // seed noise distribution and random number generator
-  rng.seed(ros::WallTime::now().toSec());
-  srand(ros::WallTime::now().toSec());
-
   return true;
 }
 
@@ -62,7 +58,8 @@ void ParticleFilter::getIndiciesFromXY(const double x, const double y,
 
 void ParticleFilter::run()
 {
-  // TODO: iterate through EVERYTHING
+  ros::Rate rr(1.0);
+
   for (std::vector <boost::variant<laser_data_t, arma::vec3> >::iterator iter=stampedData.begin();
        iter!=stampedData.end(); ++iter)
   {
@@ -75,8 +72,14 @@ void ParticleFilter::run()
     else
     {
       arma::vec3 od = boost::get<arma::vec3>(*iter);
-      cout << "got odom at " << od.t() << endl;
+      arma::vec3 pose_delta = getPoseDelta(prev_odom, od);
+      processUpdate(pose_delta);
+      prev_odom = od;
     }
+
+    visualize();
+    ros::spinOnce();
+    rr.sleep();
   }
 }
 
@@ -123,42 +126,54 @@ bool ParticleFilter::registerCallbacks(const ros::NodeHandle& n)
 
 void ParticleFilter::initializeParticles()
 {
-#if 0
-  boost::uniform_real<double> x_uniform(map_min_x, map_max_x);
-  boost::uniform_real<double> y_uniform(map_min_y, map_max_y);
-  boost::uniform_real<double> yaw_uniform(-M_PI, M_PI);
+  double map_min_x = 0.0;
+  double map_min_y = 0.0;
+  double map_max_x = MAP_RESOLUTION*MAP_WIDTH;
+  double map_max_y = MAP_RESOLUTION*MAP_HEIGHT;
 
+  // seed noise distribution and random number generator
+  boost::mt19937 rng;
+  double seed_value = ros::WallTime::now().toSec();
+  rng.seed(seed_value);
+
+  boost::uniform_real<double> x_uniform(map_min_x, map_max_x);
   boost::variate_generator<boost::mt19937,
     boost::uniform_real<double> > x_rand(rng, x_uniform);
+
+  rng.seed(seed_value - 1000.0);
+
+  boost::uniform_real<double> y_uniform(map_min_y, map_max_y);
   boost::variate_generator<boost::mt19937,
     boost::uniform_real<double> > y_rand(rng, y_uniform);
+
+  rng.seed(seed_value - 100000.0);
+
+  boost::uniform_real<double> yaw_uniform(-M_PI, M_PI);
   boost::variate_generator<boost::mt19937,
     boost::uniform_real<double> > yaw_rand(rng, yaw_uniform);
-#endif
-
-  // TODO: for initializing particles, randomly generate them and only accept them for initialization if they lie in a known (as opposed to an unknown) grid cell
 
   for (unsigned int i = 0; i < num_particles; i++)
   {
-#if 0
     bool cell_is_known = false;
     double x, y;
     while(!cell_is_known)
     {
       x = x_rand();
       y = y_rand();
-      if cell at (x,y) is known
+      if(getOccValueAtXY(x, y) > -0.5)
         cell_is_known = true;
     }
-    particle_t p(x, y, yaw_rand(), 1.0/num_particles);
+    particle_t p;
+    p.weight = 1.0/num_particles;
+    p.pose << x << y << yaw_rand();
     particle_bag.push_back(p);
-#endif
   }
-
+  printAllParticles("all particles");
 }
 
 bool ParticleFilter::loadData(const std::string& data_path)
 {
+  bool first_data_reached = false;
   string line;
   ifstream datafile (data_path.c_str());
   if (datafile.is_open())
@@ -198,6 +213,11 @@ bool ParticleFilter::loadData(const std::string& data_path)
       {
         arma::vec3 od;
         sscanf(line.c_str(),"%*c %lf %lf %lf %lf",&od(0),&od(1),&od(2),&ts);
+        if(!first_data_reached)
+        {
+          prev_odom = od;
+          first_data_reached = true;
+        }
         stampedData.push_back(od);
       }
     }
@@ -267,7 +287,7 @@ void ParticleFilter::publishMap(const ros::TimerEvent& te)
 {
   occ_grid_msg.header.stamp = ros::Time::now();
   occ_grid_msg.header.frame_id = "world";
-  occ_grid_msg.info.resolution = 10;
+  occ_grid_msg.info.resolution = 0.10;
   occ_grid_msg.info.width = MAP_WIDTH;
   occ_grid_msg.info.height = MAP_HEIGHT;
 
@@ -291,18 +311,22 @@ arma::vec3 ParticleFilter::processDynamics(const arma::vec3& pose_in,
   return pose_out;
 }
 
-void ParticleFilter::getPoseDelta(const arma::vec3& before,
-                                  const arma::vec3& after,
-                                  arma::vec3& delta)
+arma::vec3 ParticleFilter::getPoseDelta(const arma::vec3& before,
+                                  const arma::vec3& after)
 {
   double yaw_prev = before(2);
   double sy = sin(yaw_prev);
   double cy = cos(yaw_prev);
   double dxw = after(0) - before(0);
   double dyw = after(1) - before(1);
+
+  arma::vec3 delta;
+
   delta(0) = cy*dxw + sy*dyw;
   delta(1) = -sy*dxw + cy*dyw;
   delta(2) = shortest_angular_distance(yaw_prev, after(2));
+
+  return delta;
 }
 
 double ParticleFilter::unroll(double x)
@@ -329,15 +353,25 @@ double ParticleFilter::shortest_angular_distance(double from, double to)
 
 void ParticleFilter::processUpdate(const arma::vec3& u)
 {
+  // seed noise distribution and random number generator
+  boost::mt19937 rng;
+  double seed_value = ros::WallTime::now().toSec();
+  rng.seed(seed_value);
+
   // Generate Gaussians about components of u with sigma_dx, sigma_dy, sigma_dyaw
   static boost::normal_distribution<double> gauss_dx(0.0, sigma_dx);
-  static boost::normal_distribution<double> gauss_dy(0.0, sigma_dy);
-  static boost::normal_distribution<double> gauss_dyaw(0.0, sigma_dyaw);
-
   static boost::variate_generator<boost::mt19937,
     boost::normal_distribution<double> > ndx(rng, gauss_dx);
+
+  rng.seed(seed_value - 1000.0);
+
+  static boost::normal_distribution<double> gauss_dy(0.0, sigma_dy);
   static boost::variate_generator<boost::mt19937,
     boost::normal_distribution<double> > ndy(rng, gauss_dy);
+
+  rng.seed(seed_value - 5000.0);
+
+  static boost::normal_distribution<double> gauss_dyaw(0.0, sigma_dyaw);
   static boost::variate_generator<boost::mt19937,
     boost::normal_distribution<double> > ndyaw(rng, gauss_dyaw);
 
@@ -368,17 +402,15 @@ void ParticleFilter::printAllParticles(const std::string& prefix) const
 
 void ParticleFilter::visualize()
 {
-  if(particle_pub.getNumSubscribers())
+  sensor_msgs::PointCloud pcld;
+  pcld.header.frame_id = fixed_frame_id;
+  pcld.points.resize(particle_bag.size());
+  for (unsigned int i = 0; i < particle_bag.size(); i++)
   {
-    sensor_msgs::PointCloud pcld;
-    pcld.header.frame_id = fixed_frame_id;
-    pcld.points.resize(particle_bag.size());
-    for (unsigned int i = 0; i < particle_bag.size(); i++)
-    {
-      pcld.points[i].x = particle_bag[i].pose(0);
-      pcld.points[i].y = particle_bag[i].pose(1);
-      pcld.points[i].z = 0.0;
-    }
+    pcld.points[i].x = particle_bag[i].pose(0);
+    pcld.points[i].y = particle_bag[i].pose(1);
+    pcld.points[i].z = 0.0;
   }
+  particle_pub.publish(pcld);
 }
 
