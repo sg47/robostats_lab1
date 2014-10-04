@@ -31,7 +31,7 @@ public:
 
   bool initialize(const ros::NodeHandle& n);
 
-  int getOccValueAtXY(const double x, const double y);
+  double getOccValueAtXY(const double x, const double y);
 
   void getIndiciesFromXY(const double x, const double y,
                          unsigned int& row, unsigned int& col);
@@ -66,10 +66,14 @@ private:
   bool loadParameters(const ros::NodeHandle& n);
   bool registerCallbacks(const ros::NodeHandle& n);
   void initializeParticles();
-  arma::vec3 processDynamics(const arma::vec3& pose_in, const arma::vec3& pose_delta);
+  arma::vec3 processDynamics(const arma::vec3& pose_in,
+                             const arma::vec3& pose_delta);
   void processUpdate(const arma::vec3& u);
   void correctionUpdate(const arma::vec::fixed<180>& ranges);
-
+  double getScanProbability(const arma::vec3& robot_pose,
+                            const arma::vec::fixed<180>& ranges);
+  double predictLaserRange(const double x_laser, const double y_laser,
+                           const double ray_yaw);
   // geometry utility functions
   arma::vec3 getPoseDelta(const arma::vec3& before, const arma::vec3& after);
   double unroll(double x);
@@ -86,6 +90,13 @@ private:
   bool loadMap(const std::string& map_path);
 
   // CONSTANT DATA
+  double map_min_x;
+  double map_min_y;
+  double map_max_x;
+  double map_max_y;
+
+  unsigned int max_range_int;
+
   unsigned int num_particles;
 
   // a container to store laser and odom messages
@@ -93,6 +104,27 @@ private:
 
   // standard deviation parameters of the delta pose odometry "control input"
   double sigma_dx, sigma_dy, sigma_dyaw;
+
+  // size of the step taken along a ray to determine the occupancy status of
+  // the underlying cell
+  double ray_stepsize;
+
+  // probability level above which we consider a cell to be occupied
+  double cell_full_threshold;
+
+  // offset (in meters) of laser frame from robot frame along +x axis in robot frame
+  double laser_offset;
+
+  // --  Laser Range Return Probability Distribution Parameters -----
+  // stdev of the laser range return about the correct range
+  double laser_hit_sigma;
+
+  // weight for contribution due to noise about correct measurement
+  // weight for contribution due to max range laser failure
+  double w_hit;
+  double w_max;
+
+  double laser_max_range;
 
   // string parameters
   std::string name;
@@ -104,6 +136,8 @@ private:
   std::string data_file_name;
   std::string map_file_name;
   std::string base_path;
+
+  boost::mt19937 rng;
 
   // VARIABLE DATA
 

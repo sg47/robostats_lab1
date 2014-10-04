@@ -41,8 +41,10 @@ bool ParticleFilter::initialize(const ros::NodeHandle& n)
   return true;
 }
 
-int ParticleFilter::getOccValueAtXY(const double x, const double y)
+double ParticleFilter::getOccValueAtXY(const double x, const double y)
 {
+  if (x < map_min_x || x > map_max_x || y < map_min_y || y > map_max_y)
+      return -1.0;
   unsigned int row, col;
   getIndiciesFromXY(x, y, row, col);
   return occ_grid_matrix(row,col);
@@ -58,7 +60,7 @@ void ParticleFilter::getIndiciesFromXY(const double x, const double y,
 
 void ParticleFilter::run()
 {
-  ros::Rate rr(1.0);
+  ros::Rate rr(100.0);
 
   for (std::vector <boost::variant<laser_data_t, arma::vec3> >::iterator iter=stampedData.begin();
        iter!=stampedData.end(); ++iter)
@@ -68,6 +70,7 @@ void ParticleFilter::run()
     {
       laser_data_t ld = boost::get<laser_data_t>(*iter);
       correctionUpdate(ld.ranges);
+      // TODO: importance resampling
     }
     else
     {
@@ -89,6 +92,27 @@ bool ParticleFilter::loadParameters(const ros::NodeHandle& n)
   if (!pu::get("algorithm/sigma/dx", sigma_dx)) return false;
   if (!pu::get("algorithm/sigma/dy", sigma_dy)) return false;
   if (!pu::get("algorithm/sigma/dyaw", sigma_dyaw)) return false;
+  if (!pu::get("algorithm/sigma/laser/hit", laser_hit_sigma)) return false;
+
+  if (!pu::get("algorithm/cell_full_threshold", cell_full_threshold)) return false;
+  if ((cell_full_threshold > 1.0) || (cell_full_threshold < 0.0))
+  {
+    ROS_WARN("cell_full_threshold is a probability, must be between 0 and 1");
+    return false;
+  }
+
+  if (!pu::get("algorithm/w_hit", w_hit)) return false;
+  if ((w_hit > 1.0) || (w_hit < 0.0))
+  {
+    ROS_WARN("w_hit is a probability, must be between 0 and 1");
+    return false;
+  }
+  else
+    w_max = 1.0 - w_hit;
+
+  if (!pu::get("algorithm/laser_offset", laser_offset)) return false;
+  if (!pu::get("algorithm/laser_max_range", laser_max_range)) return false;
+  if (!pu::get("algorithm/ray_stepsize", ray_stepsize)) return false;
 
   if (!pu::get("frame_id/fixed", fixed_frame_id)) return false;
   if (!pu::get("frame_id/base", base_frame_id)) return false;
@@ -124,13 +148,12 @@ bool ParticleFilter::registerCallbacks(const ros::NodeHandle& n)
 
 void ParticleFilter::initializeParticles()
 {
-  double map_min_x = 0.0;
-  double map_min_y = 0.0;
-  double map_max_x = MAP_RESOLUTION*MAP_WIDTH;
-  double map_max_y = MAP_RESOLUTION*MAP_HEIGHT;
+  map_min_x = 0.0;
+  map_min_y = 0.0;
+  map_max_x = MAP_RESOLUTION*MAP_WIDTH;
+  map_max_y = MAP_RESOLUTION*MAP_HEIGHT;
 
   // seed noise distribution and random number generator
-  boost::mt19937 rng;
   double seed_value = ros::WallTime::now().toSec();
   rng.seed(seed_value);
 
@@ -150,16 +173,19 @@ void ParticleFilter::initializeParticles()
   boost::variate_generator<boost::mt19937,
     boost::uniform_real<double> > yaw_rand(rng, yaw_uniform);
 
+  double p;
+
   for (unsigned int i = 0; i < num_particles; i++)
   {
-    bool cell_is_known = false;
+    bool cell_is_free = false;
     double x, y;
-    while(!cell_is_known)
+    while(!cell_is_free)
     {
       x = x_rand();
       y = y_rand();
-      if(getOccValueAtXY(x, y) > -0.5)
-        cell_is_known = true;
+      p = getOccValueAtXY(x, y);
+      if((p > -0.5) && (p < cell_full_threshold))
+        cell_is_free = true;
     }
     particle_t p;
     p.weight = 1.0/num_particles;
@@ -170,6 +196,7 @@ void ParticleFilter::initializeParticles()
 
 bool ParticleFilter::loadData(const std::string& data_path)
 {
+  max_range_int = 0;
   bool first_data_reached = false;
   string line;
   ifstream datafile (data_path.c_str());
@@ -200,7 +227,7 @@ bool ParticleFilter::loadData(const std::string& data_path)
           }
           else if (idx >= 7)
           {
-            ld.ranges(idx-7) = atoi(beg->c_str());
+            ld.ranges(idx-7) = atof(beg->c_str())/100.0;
           }
           idx++;
         }
@@ -210,6 +237,7 @@ bool ParticleFilter::loadData(const std::string& data_path)
       {
         arma::vec3 od;
         sscanf(line.c_str(),"%*c %lf %lf %lf %lf",&od(0),&od(1),&od(2),&ts);
+        od /= 100.0;
         if(!first_data_reached)
         {
           prev_odom = od;
@@ -227,7 +255,6 @@ bool ParticleFilter::loadData(const std::string& data_path)
     return false;
   }
 }
-
 
 bool ParticleFilter::loadMap(const std::string& map_path)
 {
@@ -254,6 +281,7 @@ bool ParticleFilter::loadMap(const std::string& map_path)
           continue;
 
         double val = atof(beg->c_str());
+        val = val<0 ? val : 1.0 - val;
         occ_grid_matrix(mapfile_line_idx-7, col_idx) = val;
         col_idx++;
       }
@@ -263,7 +291,7 @@ bool ParticleFilter::loadMap(const std::string& map_path)
         for (unsigned int j=0; j<800; j++)
         {
           double val = occ_grid_matrix(i,j);
-          val = val<0 ? val : 100*(1-val);
+          val = val<0 ? val : 100*val;
           occ_grid_msg.data.push_back(val);
         }
 
@@ -289,9 +317,7 @@ void ParticleFilter::publishMap(const ros::TimerEvent& te)
   occ_grid_msg.info.height = MAP_HEIGHT;
 
   map_pub.publish(occ_grid_msg);
-  cout << "published map" << endl;
 }
-
 
 arma::vec3 ParticleFilter::processDynamics(const arma::vec3& pose_in,
                                            const arma::vec3& pose_delta)
@@ -351,7 +377,6 @@ double ParticleFilter::shortest_angular_distance(double from, double to)
 void ParticleFilter::processUpdate(const arma::vec3& u)
 {
   // seed noise distribution and random number generator
-  boost::mt19937 rng;
   double seed_value = ros::WallTime::now().toSec();
   rng.seed(seed_value);
 
@@ -386,18 +411,99 @@ void ParticleFilter::processUpdate(const arma::vec3& u)
 
 void ParticleFilter::correctionUpdate(const arma::vec::fixed<180>& ranges)
 {
-  std::vector <particle_t> propagated_particles;
-
+  double total_weight = 0.0;
   for (unsigned int i = 0; i < particle_bag.size(); i++)
   {
-
-    for (unsigned int j = 0; j < 180; j++)
-    {
-
-
-    }
+     double scan_probability = getScanProbability(particle_bag[i].pose, ranges);
+     particle_bag[i].weight *= scan_probability;
+     total_weight += particle_bag[i].weight;
   }
 
+  // normalize weights
+  for (unsigned int i = 0; i < particle_bag.size(); i++)
+  {
+     particle_bag[i].weight /= total_weight;
+  }
+}
+
+double ParticleFilter::getScanProbability(const arma::vec3& robot_pose,
+                                          const arma::vec::fixed<180>& ranges)
+{
+  double x_laser = robot_pose(0) + laser_offset*cos(robot_pose(2));
+  double y_laser = robot_pose(1) + laser_offset*sin(robot_pose(2));
+
+  // assume that laser beam range returns are independent
+  // P(z_{1:180} | x) = product_{i=1:180} P(z_i | x)
+  // log P(z_{1:180} | x) = sum_{i=1:180} log P(z_i | x)
+
+  double lp = 0.0;
+
+  // there are 180 - 1 = 179 spaces between entries
+  double conv_factor = M_PI/179.0;
+
+  for (unsigned int j = 0; j < 180; j++)
+  {
+    // j = 0 corresponds to theta = -PI/2, j = 180 correspond to theta = PI/2
+    // j = 90 corresponds with theta = 0 (positive laser x-axis)
+    double theta_rad = static_cast<double>(j)*conv_factor - M_PI/2.0;
+    double z_pred = predictLaserRange(x_laser, y_laser, robot_pose(2) + theta_rad);
+
+    boost::math::normal pzhit(z_pred, laser_hit_sigma);
+
+    //printf("z_pred = %f \t laser_hit_sigma = %f \t, ranges(%d) = %f \t log(pdf) = %f \n",
+    //       z_pred, laser_hit_sigma, j, ranges(j), log(pdf(pzhit,ranges(j))));
+    lp += log(pdf(pzhit,ranges(j)));
+  }
+
+  return exp(lp);
+}
+
+double ParticleFilter::predictLaserRange(const double x_laser,
+                                         const double y_laser,
+                                         const double ray_yaw)
+{
+   double x_cur = x_laser;
+   double y_cur = y_laser;
+   double range = 0.0;
+   double cy = cos(ray_yaw);
+   double sy = sin(ray_yaw);
+
+#if 0
+   printf("cell_full_threshold = %f \t laser_max_range = %f \n",
+          cell_full_threshold, laser_max_range);
+
+   printf("prob occupied = %f \t range = %f \n",
+            getOccValueAtXY(x_cur, y_cur), range);
+#endif
+
+   // while (x_cur, y_cur) is unoccupied
+   while(getOccValueAtXY(x_cur, y_cur) < cell_full_threshold)
+   {
+     //printf("prob occupied = %f \t range = %f \n",
+     //       getOccValueAtXY(x_cur, y_cur), range);
+     if(range > laser_max_range)
+     {
+       //ROS_ERROR("range > laser_max_range");
+       return laser_max_range;
+     }
+
+     // return random range value in [range, laser_max_range] if
+     // we have exceeded the bounds of the known map
+     if(getOccValueAtXY(x_cur, y_cur) < -0.5)
+     {
+       rng.seed(ros::WallTime::now().toSec());
+       boost::uniform_real<double> r_uniform(range, laser_max_range);
+       boost::variate_generator<boost::mt19937,
+         boost::uniform_real<double> > r_rand(rng, r_uniform);
+       //ROS_WARN("UNKNOWN cell");
+       return r_rand();
+     }
+
+     range += ray_stepsize;
+     x_cur += ray_stepsize*cy;
+     y_cur += ray_stepsize*sy;
+   }
+   return range;
 }
 
 void ParticleFilter::printAllParticles(const std::string& prefix) const

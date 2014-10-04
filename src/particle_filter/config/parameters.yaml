@@ -4,6 +4,13 @@ algorithm:
     dx: 0.02
     dy: 0.02
     dyaw: 0.03
+    laser:
+      hit: 1.0
+  cell_full_threshold: 0.9
+  laser_offset: 0.25
+  laser_max_range: 5000
+  w_hit: 1.0
+  ray_stepsize: 0.01
 frame_id:
   fixed: world
   base: robot
