@@ -90,7 +90,7 @@ private:
   unsigned int num_particles;
 
   // a container to store laser and odom messages
-  std::map <double, boost::variant<laser_data_t, arma::vec3> > stampedData;
+  std::vector <boost::variant<laser_data_t, arma::vec3> > stampedData;
 
   // standard deviation parameters of the delta pose odometry "control input"
   double sigma_dx, sigma_dy, sigma_dyaw;

@@ -63,6 +63,21 @@ void ParticleFilter::getIndiciesFromXY(const double x, const double y,
 void ParticleFilter::run()
 {
   // TODO: iterate through EVERYTHING
+  for (std::vector <boost::variant<laser_data_t, arma::vec3> >::iterator iter=stampedData.begin();
+       iter!=stampedData.end(); ++iter)
+  {
+    // 0 = Laser, 1 = Odom
+    if (iter->which() == 0)
+    {
+      laser_data_t ld = boost::get<laser_data_t>(*iter);
+      cout << "got laser at " << ld.robot_pose.t() << endl;
+    }
+    else
+    {
+      arma::vec3 od = boost::get<arma::vec3>(*iter);
+      cout << "got odom at " << od.t() << endl;
+    }
+  }
 }
 
 bool ParticleFilter::loadParameters(const ros::NodeHandle& n)
@@ -177,13 +192,13 @@ bool ParticleFilter::loadData(const std::string& data_path)
           }
           idx++;
         }
-        stampedData[ts] = ld;
+        stampedData.push_back(ld);
       }
       else      // Load odom data entry
       {
         arma::vec3 od;
         sscanf(line.c_str(),"%*c %lf %lf %lf %lf",&od(0),&od(1),&od(2),&ts);
-        stampedData[ts] = od;
+        stampedData.push_back(od);
       }
     }
     datafile.close();
