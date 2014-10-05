@@ -82,7 +82,7 @@ Visualization Manager:
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.5
+      Size (m): 0.1
       Style: Spheres
       Topic: /particle_filter/particles
       Use Fixed Frame: true
@@ -115,11 +115,11 @@ Visualization Manager:
       Class: rviz/TopDownOrtho
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 7.98821
+      Scale: 17.3793
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 46.2299
-      Y: 48.1191
+      X: 41.8995
+      Y: 58.6608
     Saved: ~
 Window Geometry:
   Displays:
@@ -137,5 +137,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1920
-  X: 1600
+  X: 1593
   Y: 24

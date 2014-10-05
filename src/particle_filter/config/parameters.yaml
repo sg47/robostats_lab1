@@ -1,5 +1,5 @@
 algorithm:
-  num_particles: 1000
+  num_particles: 5000
   sigma:
     dx: 0.02
     dy: 0.02

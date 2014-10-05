@@ -348,7 +348,7 @@ arma::vec3 ParticleFilter::processDynamics(const arma::vec3& pose_in,
 }
 
 arma::vec3 ParticleFilter::getPoseDelta(const arma::vec3& before,
-                                  const arma::vec3& after)
+                                        const arma::vec3& after)
 {
   double yaw_prev = before(2);
   double sy = sin(yaw_prev);
@@ -492,7 +492,6 @@ double ParticleFilter::predictLaserRange(const double x_laser,
      //       getOccValueAtXY(x_cur, y_cur), range);
      if(range > laser_max_range)
      {
-       //ROS_ERROR("range > laser_max_range");
        return laser_max_range;
      }
 
@@ -504,7 +503,6 @@ double ParticleFilter::predictLaserRange(const double x_laser,
        boost::uniform_real<double> r_uniform(range, laser_max_range);
        boost::variate_generator<boost::mt19937,
          boost::uniform_real<double> > r_rand(rng, r_uniform);
-       //ROS_WARN("UNKNOWN cell");
        return r_rand();
      }
 
@@ -547,18 +545,12 @@ void ParticleFilter::addNewParticle(const arma::vec& weights,
 
   double wr = w_rand();
 
-  for (unsigned int i=0; i<particle_bag.size(); i++)
-  {
-    if (wr < cw(i))
-    {
-      particle_t p;
-      p.pose = particle_bag[i].pose;
-      p.weight = lw;
-//      particle_bag[i].print();
-      target.push_back(p);
-      break;
-    }
-  }
+  unsigned int ind = arma::as_scalar(arma::find(wr < cw, 1, "first"));
+
+  particle_t p;
+  p.pose = particle_bag[ind].pose;
+  p.weight = lw;
+  target.push_back(p);
 }
 
 void ParticleFilter::printAllParticles(const std::string& prefix) const
