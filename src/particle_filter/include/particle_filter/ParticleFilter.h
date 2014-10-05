@@ -92,6 +92,11 @@ private:
   bool loadData(const std::string& data_path);
   bool loadMap(const std::string& map_path);
 
+  // probability utility functions
+  double getUniformRV(double min, double max);
+  double getGaussianRV(double mean, double stddev);
+
+  
   // CONSTANT DATA
   double map_min_x;
   double map_min_y;
@@ -104,7 +109,7 @@ private:
 
   // a container to store laser and odom messages
   std::vector <boost::variant<laser_data_t, arma::vec3> > stampedData;
-
+  
   // standard deviation parameters of the delta pose odometry "control input"
   double sigma_dx, sigma_dy, sigma_dyaw;
 

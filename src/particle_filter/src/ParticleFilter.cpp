@@ -6,10 +6,6 @@
 #include <string>
 
 #include <boost/tokenizer.hpp>
-#include <boost/random/uniform_real.hpp>
-#include <boost/random/normal_distribution.hpp>
-#include <boost/random/variate_generator.hpp>
-#include <boost/math/distributions/normal.hpp>
 
 #include <particle_filter/ParticleFilter.h>
 
@@ -36,6 +32,8 @@ bool ParticleFilter::initialize(const ros::NodeHandle& n)
     return false;
   }
 
+  arma::arma_rng::set_seed_random();
+ 
   initializeParticles();
 
   return true;
@@ -54,8 +52,8 @@ void ParticleFilter::getIndiciesFromXY(const double x, const double y,
                                        unsigned int& row, unsigned int& col)
 {
   // TODO: check whether cells are corner aligned or center aligned, x-y alignment
-  col = floor(x/MAP_RESOLUTION);
-  row = floor(y/MAP_RESOLUTION);
+  col = (int)(x/MAP_RESOLUTION);
+  row = (int)(y/MAP_RESOLUTION);
 }
 
 void ParticleFilter::run()
@@ -166,26 +164,6 @@ void ParticleFilter::initializeParticles()
   map_max_x = MAP_RESOLUTION*MAP_WIDTH;
   map_max_y = MAP_RESOLUTION*MAP_HEIGHT;
 
-  // seed noise distribution and random number generator
-  double seed_value = ros::WallTime::now().toSec();
-  rng.seed(seed_value);
-
-  boost::uniform_real<double> x_uniform(map_min_x, map_max_x);
-  boost::variate_generator<boost::mt19937,
-    boost::uniform_real<double> > x_rand(rng, x_uniform);
-
-  rng.seed(seed_value - 1000.0);
-
-  boost::uniform_real<double> y_uniform(map_min_y, map_max_y);
-  boost::variate_generator<boost::mt19937,
-    boost::uniform_real<double> > y_rand(rng, y_uniform);
-
-  rng.seed(seed_value - 100000.0);
-
-  boost::uniform_real<double> yaw_uniform(-M_PI, M_PI);
-  boost::variate_generator<boost::mt19937,
-    boost::uniform_real<double> > yaw_rand(rng, yaw_uniform);
-
   double p;
   double lw = log(1.0/num_particles);
   for (unsigned int i = 0; i < num_particles; i++)
@@ -194,15 +172,15 @@ void ParticleFilter::initializeParticles()
     double x, y;
     while(!cell_is_free)
     {
-      x = x_rand();
-      y = y_rand();
+      x = getUniformRV(map_min_x, map_max_x);
+      y = getUniformRV(map_min_y, map_max_y);
       p = getOccValueAtXY(x, y);
       if((p > -0.5) && (p < 0.1))
         cell_is_free = true;
     }
     particle_t p;
     p.weight = lw;
-    p.pose << x << y << yaw_rand();
+    p.pose << x << y << getUniformRV(-M_PI, M_PI);
     particle_bag.push_back(p);
   }
 }
@@ -389,35 +367,14 @@ double ParticleFilter::shortest_angular_distance(double from, double to)
 
 void ParticleFilter::processUpdate(const arma::vec3& u)
 {
-  // seed noise distribution and random number generator
-  double seed_value = ros::WallTime::now().toSec();
-  rng.seed(seed_value);
-
-  // Generate Gaussians about components of u with sigma_dx, sigma_dy, sigma_dyaw
-  static boost::normal_distribution<double> gauss_dx(0.0, sigma_dx);
-  static boost::variate_generator<boost::mt19937,
-    boost::normal_distribution<double> > ndx(rng, gauss_dx);
-
-  rng.seed(seed_value - 1000.0);
-
-  static boost::normal_distribution<double> gauss_dy(0.0, sigma_dy);
-  static boost::variate_generator<boost::mt19937,
-    boost::normal_distribution<double> > ndy(rng, gauss_dy);
-
-  rng.seed(seed_value - 5000.0);
-
-  static boost::normal_distribution<double> gauss_dyaw(0.0, sigma_dyaw);
-  static boost::variate_generator<boost::mt19937,
-    boost::normal_distribution<double> > ndyaw(rng, gauss_dyaw);
-
   // replace each particle x_t[m] in particle_bag with a particle
   // x_{t+1}[m] sampled from p(x_{t+1} | x_t[m], u_t)
   for(unsigned int i = 0; i < particle_bag.size(); i++)
   {
     arma::vec3 noisy_delta;
-    noisy_delta(0) = u(0) + ndx();
-    noisy_delta(1) = u(1) + ndy();
-    noisy_delta(2) = u(2) + ndyaw();
+    noisy_delta(0) = u(0) + getGaussianRV(0.0, sigma_dx);
+    noisy_delta(1) = u(1) + getGaussianRV(0.0, sigma_dy);
+    noisy_delta(2) = u(2) + getGaussianRV(0.0, sigma_dyaw);
     particle_bag[i].pose = processDynamics(particle_bag[i].pose, noisy_delta);
   }
 }
@@ -486,7 +443,8 @@ double ParticleFilter::predictLaserRange(const double x_laser,
 #endif
 
    // while (x_cur, y_cur) is unoccupied
-   while(getOccValueAtXY(x_cur, y_cur) < cell_full_threshold)
+   double occ_value = getOccValueAtXY(x_cur, y_cur);
+   while(occ_value < cell_full_threshold)
    {
      //printf("prob occupied = %f \t range = %f \n",
      //       getOccValueAtXY(x_cur, y_cur), range);
@@ -497,18 +455,16 @@ double ParticleFilter::predictLaserRange(const double x_laser,
 
      // return random range value in [range, laser_max_range] if
      // we have exceeded the bounds of the known map
-     if(getOccValueAtXY(x_cur, y_cur) < -0.5)
+     if(occ_value < -0.5)
      {
-       rng.seed(ros::WallTime::now().toSec());
-       boost::uniform_real<double> r_uniform(range, laser_max_range);
-       boost::variate_generator<boost::mt19937,
-         boost::uniform_real<double> > r_rand(rng, r_uniform);
-       return r_rand();
+       return getUniformRV(range, laser_max_range);
      }
 
      range += ray_stepsize;
      x_cur += ray_stepsize*cy;
      y_cur += ray_stepsize*sy;
+
+     occ_value = getOccValueAtXY(x_cur, y_cur);
    }
    return range;
 }
@@ -535,15 +491,8 @@ void ParticleFilter::addNewParticle(const arma::vec& weights,
 {
   arma::vec cw = arma::cumsum(arma::exp(weights));
 
-  rng.seed(ros::WallTime::now().toSec());
-
   double lw = log(1.0/particle_bag.size());
-
-  static boost::uniform_real<double> w_uniform(0.0,1.0);
-  static boost::variate_generator<boost::mt19937,
-    boost::uniform_real<double> > w_rand(rng, w_uniform);
-
-  double wr = w_rand();
+  double wr = getUniformRV(0.0,1.0);
 
   unsigned int ind = arma::as_scalar(arma::find(wr < cw, 1, "first"));
 
@@ -579,3 +528,12 @@ void ParticleFilter::visualize()
   particle_pub.publish(pcld);
 }
 
+double ParticleFilter::getUniformRV(double min, double max)
+{
+  return arma::as_scalar(arma::randu(1))*(max-min) + min;
+}
+
+double ParticleFilter::getGaussianRV(double mean, double stddev)
+{
+  return arma::as_scalar(arma::randn(1))*stddev + mean;
+}
