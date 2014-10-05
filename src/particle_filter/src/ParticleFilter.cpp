@@ -60,17 +60,20 @@ void ParticleFilter::getIndiciesFromXY(const double x, const double y,
 
 void ParticleFilter::run()
 {
-  ros::Rate rr(100.0);
+  ros::Rate rr(sim_rate);
 
   for (std::vector <boost::variant<laser_data_t, arma::vec3> >::iterator iter=stampedData.begin();
        iter!=stampedData.end(); ++iter)
   {
+    if(!ros::ok())
+      break;
+
     // 0 = Laser, 1 = Odom
     if (iter->which() == 0)
     {
       laser_data_t ld = boost::get<laser_data_t>(*iter);
       correctionUpdate(ld.ranges);
-      // TODO: importance resampling
+      resampleImportance();
     }
     else
     {
@@ -84,10 +87,13 @@ void ParticleFilter::run()
     ros::spinOnce();
     rr.sleep();
   }
+  ROS_WARN("Finished processing all data");
 }
 
 bool ParticleFilter::loadParameters(const ros::NodeHandle& n)
 {
+  if (!pu::get("sim_rate", sim_rate)) return false;
+
   if (!pu::get("algorithm/num_particles", num_particles)) return false;
   if (!pu::get("algorithm/sigma/dx", sigma_dx)) return false;
   if (!pu::get("algorithm/sigma/dy", sigma_dy)) return false;
@@ -98,6 +104,13 @@ bool ParticleFilter::loadParameters(const ros::NodeHandle& n)
   if ((cell_full_threshold > 1.0) || (cell_full_threshold < 0.0))
   {
     ROS_WARN("cell_full_threshold is a probability, must be between 0 and 1");
+    return false;
+  }
+
+  if (!pu::get("algorithm/cell_empty_threshold", cell_empty_threshold)) return false;
+  if ((cell_empty_threshold > 1.0) || (cell_empty_threshold < 0.0))
+  {
+    ROS_WARN("cell_empty_threshold is a probability, must be between 0 and 1");
     return false;
   }
 
@@ -174,7 +187,7 @@ void ParticleFilter::initializeParticles()
     boost::uniform_real<double> > yaw_rand(rng, yaw_uniform);
 
   double p;
-
+  double lw = log(1.0/num_particles);
   for (unsigned int i = 0; i < num_particles; i++)
   {
     bool cell_is_free = false;
@@ -184,11 +197,11 @@ void ParticleFilter::initializeParticles()
       x = x_rand();
       y = y_rand();
       p = getOccValueAtXY(x, y);
-      if((p > -0.5) && (p < cell_full_threshold))
+      if((p > -0.5) && (p < 0.1))
         cell_is_free = true;
     }
     particle_t p;
-    p.weight = 1.0/num_particles;
+    p.weight = lw;
     p.pose << x << y << yaw_rand();
     particle_bag.push_back(p);
   }
@@ -414,20 +427,18 @@ void ParticleFilter::correctionUpdate(const arma::vec::fixed<180>& ranges)
   double total_weight = 0.0;
   for (unsigned int i = 0; i < particle_bag.size(); i++)
   {
-     double scan_probability = getScanProbability(particle_bag[i].pose, ranges);
-     particle_bag[i].weight *= scan_probability;
-     total_weight += particle_bag[i].weight;
+     double lsp = getLogScanProbability(particle_bag[i].pose, ranges);
+     particle_bag[i].weight += lsp;
+     total_weight += exp(particle_bag[i].weight);
   }
 
   // normalize weights
   for (unsigned int i = 0; i < particle_bag.size(); i++)
-  {
-     particle_bag[i].weight /= total_weight;
-  }
+     particle_bag[i].weight -= log(total_weight);
 }
 
-double ParticleFilter::getScanProbability(const arma::vec3& robot_pose,
-                                          const arma::vec::fixed<180>& ranges)
+double ParticleFilter::getLogScanProbability(const arma::vec3& robot_pose,
+                                             const arma::vec::fixed<180>& ranges)
 {
   double x_laser = robot_pose(0) + laser_offset*cos(robot_pose(2));
   double y_laser = robot_pose(1) + laser_offset*sin(robot_pose(2));
@@ -448,14 +459,12 @@ double ParticleFilter::getScanProbability(const arma::vec3& robot_pose,
     double theta_rad = static_cast<double>(j)*conv_factor - M_PI/2.0;
     double z_pred = predictLaserRange(x_laser, y_laser, robot_pose(2) + theta_rad);
 
-    boost::math::normal pzhit(z_pred, laser_hit_sigma);
+    double mean_shift = ranges(j) - z_pred;
 
-    //printf("z_pred = %f \t laser_hit_sigma = %f \t, ranges(%d) = %f \t log(pdf) = %f \n",
-    //       z_pred, laser_hit_sigma, j, ranges(j), log(pdf(pzhit,ranges(j))));
-    lp += log(pdf(pzhit,ranges(j)));
+    lp -= mean_shift*mean_shift/(2*laser_hit_sigma*laser_hit_sigma);
   }
 
-  return exp(lp);
+  return lp;
 }
 
 double ParticleFilter::predictLaserRange(const double x_laser,
@@ -504,6 +513,52 @@ double ParticleFilter::predictLaserRange(const double x_laser,
      y_cur += ray_stepsize*sy;
    }
    return range;
+}
+
+void ParticleFilter::resampleImportance()
+{
+  std::vector<particle_t> new_particles;
+
+  arma::vec weights(particle_bag.size());
+
+  for(unsigned int i = 0; i < particle_bag.size(); i++)
+    weights(i) = particle_bag[i].weight;
+
+  //weights.print("weights");
+
+  for(unsigned int i = 0; i < particle_bag.size(); i++)
+    addNewParticle(weights, new_particles);
+
+  particle_bag = new_particles;
+}
+
+void ParticleFilter::addNewParticle(const arma::vec& weights,
+                                    std::vector<particle_t>& target)
+{
+  arma::vec cw = arma::cumsum(arma::exp(weights));
+
+  rng.seed(ros::WallTime::now().toSec());
+
+  double lw = log(1.0/particle_bag.size());
+
+  static boost::uniform_real<double> w_uniform(0.0,1.0);
+  static boost::variate_generator<boost::mt19937,
+    boost::uniform_real<double> > w_rand(rng, w_uniform);
+
+  double wr = w_rand();
+
+  for (unsigned int i=0; i<particle_bag.size(); i++)
+  {
+    if (wr < cw(i))
+    {
+      particle_t p;
+      p.pose = particle_bag[i].pose;
+      p.weight = lw;
+//      particle_bag[i].print();
+      target.push_back(p);
+      break;
+    }
+  }
 }
 
 void ParticleFilter::printAllParticles(const std::string& prefix) const

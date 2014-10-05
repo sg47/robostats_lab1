@@ -70,10 +70,13 @@ private:
                              const arma::vec3& pose_delta);
   void processUpdate(const arma::vec3& u);
   void correctionUpdate(const arma::vec::fixed<180>& ranges);
-  double getScanProbability(const arma::vec3& robot_pose,
+  double getLogScanProbability(const arma::vec3& robot_pose,
                             const arma::vec::fixed<180>& ranges);
   double predictLaserRange(const double x_laser, const double y_laser,
                            const double ray_yaw);
+  void resampleImportance();
+  void addNewParticle(const arma::vec& weights, std::vector<particle_t>& target);
+
   // geometry utility functions
   arma::vec3 getPoseDelta(const arma::vec3& before, const arma::vec3& after);
   double unroll(double x);
@@ -112,6 +115,10 @@ private:
   // probability level above which we consider a cell to be occupied
   double cell_full_threshold;
 
+  // probability level below which we consider a cell to be unoccupied
+  // (for the purposes of initializing particles)
+  double cell_empty_threshold;
+
   // offset (in meters) of laser frame from robot frame along +x axis in robot frame
   double laser_offset;
 
@@ -125,6 +132,8 @@ private:
   double w_max;
 
   double laser_max_range;
+
+  double sim_rate;
 
   // string parameters
   std::string name;
