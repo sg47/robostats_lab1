@@ -1,0 +1,32 @@
+\section{Implementation}
+
+\subsection{Data Parsing}
+Since all the provided odometry data is expressed in the same arbitrary reference frame, 2D pose differencing is required to extract the measurements required by the motion model (Section \ref{sec:motion_model}).
+Suppose we have two consecutive pose readings (expressed in the same frame) at timestep $k-1$ and $k$.
+The incremental pose associated with an odometry measurement at $t_k$ is
+\begin{align}
+  \bbm  \Delta x \\ \Delta y \ebm &= \bbm \cos \psi_{k-1} & \sin \psi_{k-1} \\ -\sin \psi_{k-1} & \cos \psi_{k-1} \ebm \bbm x_k - x_{k-1} \\ y_k - y_{k-1} \ebm \\
+                      \Delta \psi &= \texttt{shortest\_angular\_distance}(\psi_k, \psi_{k-1})
+\end{align}
+
+
+\subsection{Log Weights to Prevent Numerical Overflow}
+The straightforward description of the particle filter algorithm in \cite{thrun2005probabilistic} cannot be implemented as-is due to problems with numerical overflow when working with extremely small probabilities, which will arise in \eqref{eq:pzx_indep}.
+Instead of keeping track of particle weights, we keep track of the log weights.
+Then \eqref{eq:pzx_indep} becomes
+\begin{align}
+  \log P(\mbf{z} | \mbf{x}) &= \sum_{i=1}^{180} \log P(z_i | \mbf{x}) \\
+  \log P(\mbf{z} | \mbf{x}) &= - \sum_{i=1}^{180} \frac{\left( z_i - h(\mbf{x}, \theta_i, \mbf{x}) \right)^2}{\sigma_{\text{hit}}^2}
+\end{align}
+Normalization of log weights can be done by subtracting the log of the sum of all regular weights from each particle's log weight.
+
+\subsection{Parameter Tuning}
+Number of particles
+
+$\sigma_{\Delta x}$, $\sigma_{\Delta y}$, $\sigma_{\Delta \psi}$
+
+$\sigma_\text{hit}$
+
+cell full and empty probability thresholds
+
+laser max range
