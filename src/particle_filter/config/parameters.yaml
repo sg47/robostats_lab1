@@ -1,17 +1,17 @@
 algorithm:
   num_particles: 10000
   sigma:
-    dx: 0.03
-    dy: 0.03
-    dyaw: 0.07
+    dx: 0.02
+    dy: 0.02
+    dyaw: 0.03
     laser:
-      hit: 100.0
+      hit: 200.0
   cell_full_threshold: 0.5
   cell_empty_threshold: 0.1
   laser_offset: 0.25
   laser_max_range: 50
   w_hit: 1.0
-  ray_stepsize: 0.25
+  ray_stepsize: 0.5
 sim_rate: 200.0
 frame_id:
   fixed: world
@@ -19,7 +19,7 @@ frame_id:
   odom: odom
   laser: laser
 files:
-  data: robotdata1.log
+  data: ascii-robotdata5.log #robotdata1.log
   map: wean.dat
   #path: /home/johnyao/Dropbox/Graduate_Coursework/RoboStats/robostats_lab1/
   path: /home/vishnu/Documents/RoboStats/robostats_lab1/

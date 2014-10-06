@@ -6,7 +6,7 @@
   type="rviz"
   output="screen"
   args="-d $(find particle_filter)/vis/test.rviz"
-  launch-prefix="glc-capture -s -f 1 -o /home/vishnu/Desktop/rec.glc --disable-audio -z none --sighandler"/>
+  launch-prefix="glc-capture -s -f 1 -o /home/vishnu/Desktop/rec5.glc --disable-audio -z none --sighandler"/>
 
   <node pkg="particle_filter"
   name="particle_filter"

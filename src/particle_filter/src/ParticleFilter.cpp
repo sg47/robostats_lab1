@@ -70,6 +70,8 @@ void ParticleFilter::run()
     if(!ros::ok())
       break;
 
+    ros::spinOnce();
+    
     // 0 = Laser, 1 = Odom
     if (iter->which() == 0)
     {
@@ -281,7 +283,7 @@ bool ParticleFilter::loadMap(const std::string& map_path)
 
         double val = atof(beg->c_str());
         val = val<0 ? val : 1.0 - val;
-        occ_grid_matrix(mapfile_line_idx-7, col_idx) = val;
+        occ_grid_matrix((mapfile_line_idx-7), 799-col_idx) = val;
         col_idx++;
       }
 
@@ -384,6 +386,10 @@ void ParticleFilter::processUpdate(const arma::vec3& u)
     noisy_delta(1) = u(1) + getGaussianRV(0.0, sigma_dy);
     noisy_delta(2) = u(2) + getGaussianRV(0.0, sigma_dyaw);
     particle_bag[i].pose = processDynamics(particle_bag[i].pose, noisy_delta);
+
+    // Update weight based on p(unoccupied)
+    particle_bag[i].weight += log(1.0 - 0.9*getOccValueAtXY(particle_bag[i].pose(0),
+                                                            particle_bag[i].pose(1)));
   }
 }
 
