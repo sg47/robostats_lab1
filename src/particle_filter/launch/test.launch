@@ -5,12 +5,14 @@
   pkg="rviz"
   type="rviz"
   output="screen"
-  args="-d $(find particle_filter)/vis/test.rviz"/>
+  args="-d $(find particle_filter)/vis/test.rviz"
+  launch-prefix="glc-capture -s -f 1 -o /home/vishnu/Desktop/rec.glc --disable-audio -z none --sighandler"/>
 
   <node pkg="particle_filter"
   name="particle_filter"
   type="particle_filter"
-  output="screen"/>
+  output="screen"
+  required="true"/>
 
   <!-- Particle Filter Parameters -->
   <rosparam file="$(find particle_filter)/config/parameters.yaml"/>

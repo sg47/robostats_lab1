@@ -60,9 +60,13 @@ void ParticleFilter::run()
 {
   ros::Rate rr(sim_rate);
 
+  unsigned int ctr = 0;
   for (std::vector <boost::variant<laser_data_t, arma::vec3> >::iterator iter=stampedData.begin();
        iter!=stampedData.end(); ++iter)
   {
+    if (ctr%100 == 0)
+      cout << "Iteration: " << ctr << "/" << stampedData.size() << endl;
+
     if(!ros::ok())
       break;
 
@@ -84,8 +88,12 @@ void ParticleFilter::run()
     visualize();
     ros::spinOnce();
     rr.sleep();
+    ctr++;
+    
   }
   ROS_WARN("Finished processing all data");
+
+  ros::shutdown();
 }
 
 bool ParticleFilter::loadParameters(const ros::NodeHandle& n)
