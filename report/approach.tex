@@ -1,0 +1,47 @@
+\section{Approach}
+
+\subsection{Notation}
+
+\begin{tabular}{ c p{13.5cm} }
+  \textbf{Symbol} & \textbf{Meaning} \\ \hline
+        $\mbf{x}$ & robot state (position and heading in world frame) \\
+        $\mbf{z}$ & vector of 180 laser range returns \\
+        $\mbf{m}$ & the map \\
+     $(x_r, y_r)$ & robot position in world frame \\
+     $\psi_r$ & robot heading in world frame \\
+           $n$ & additive Gaussian noise \\
+ $\mathcal{N}(\mu, \sigma^2)$ & Gaussian distribution with mean $\mu$ and variance $\sigma$ \\
+                   $\theta_i$ & laser beam heading angle relative to the robot body +$x$ axis, $\theta_1 \approx -\frac{\pi}{2}$, $\theta_{180} \approx \frac{\pi}{2}$
+\end{tabular}
+
+\subsection{Motion Model}
+\label{sec:motion_model}
+An odometry measurement represents the incremental motion of the robot from $t_k$ to $t_{k+1}$, expressed in the robot body frame at $t_k$.
+This incremental motion can be decomposed into a linear component parallel to the heading ($\Delta x$), a linear component perpendicular to the heading ($\Delta y$), and a change in the heading ($\Delta \psi$).
+We assume that each component of the odometry measurement is corrupted by additive zero-mean Gaussian noise.
+\begin{align}
+  n_{\Delta x} &= \mathcal{N}(0, \sigma_{\Delta x}^2 ) \\
+  n_{\Delta y} &= \mathcal{N}(0, \sigma_{\Delta y}^2 ) \\
+  n_{\Delta \psi} &= \mathcal{N}(0, \sigma_{\Delta \psi}^2 )
+\end{align}
+The update equations for the robot state are:
+\begin{align}
+  x_{r,k+1} &= x_{r,k} + \cos \psi_{r,k} \cdot \Delta x - \sin \psi_{r,k} \cdot \Delta y + n_{\Delta x} \\
+  y_{r,k+1} &= y_{r,k} + \sin \psi_{r,k} \cdot \Delta x + \sin \psi_{r,k} \cdot \Delta y + n_{\Delta y} \\
+  \psi_{r,k+1} &= \psi_{r,k+1} + \Delta \psi + n_{\Delta \psi}
+\end{align}
+
+\subsection{Sensor Model}
+\label{sec:sensor_model}
+The sensor model describes the distribution $P(\mbf{z} | \mbf{x})$.
+We first assume for simplicity that the distribution of each individual laser range return is independent (not true in real life).
+\begin{align}
+  P(\mbf{z} | \mbf{x}) &= \prod_{i=1}^{180} P(z_i | \mbf{x}) \label{eq:pzx_indep}
+\end{align}
+We also assume that each of the individual range return distributions is a Gaussian with mean $h(\mbf{x},\theta_i, \mbf{m})$ and variance $\sigma_\text{hit}^2$.
+The range prediction $h$ is computed by ray tracing along the world frame heading $\psi_r + \theta_i$ from a location $25$ cm in front of the robot until hitting an occupied grid cell or an unknown grid cell.
+In the former case, $h$ is the accumulated range, while in the latter case, $h$ is assigned a random value uniformly distributed between the accumulated range and the max range.
+
+
+\subsection{Resampling}
+In the importance resampling step we replace thecurrent set of particles with a new set of particles sampled from a distribution where the probability of selecting a particle is proportional to its weight.

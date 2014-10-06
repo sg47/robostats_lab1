@@ -30,7 +30,9 @@
 \setcounter{MaxMatrixCols}{20}
 \usepackage{epsfig}
 \usepackage{comment}
+\usepackage[space]{cite}
 
+\bibliographystyle{plain}
 \DeclareGraphicsExtensions{.pdf,.jpeg,.png,.eps}
 \graphicspath{{figures/}}
 
@@ -54,10 +56,16 @@
 \title{Robostats Lab 1 \\ Particle Filtering}
 \author{Vishnu Desaraju}
 \author{John Yao}
-\affil{The Robotics Institute, Carnegie Mellon University\\ \{rajeswar, johnyao, enelson\}@cmu.edu}
+\affil{The Robotics Institute, Carnegie Mellon University\\ \{rajeswar, johnyao\}@cmu.edu}
 
 \maketitle
 
-Write stuff here.
+\input{approach}
+\input{implementation}
+\input{results}
+
+\input{future}
+
+\bibliography{refs}
 
 \end{document}
