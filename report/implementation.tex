@@ -1,5 +1,7 @@
 \section{Implementation}
 
+We decided to implement the particle filter in C++ due to the potentially high computational cost. We also decided to use a ROS framework to simplify parameter loading and visualization (via rviz).
+
 \subsection{Data Parsing}
 Since all the provided odometry data is expressed in the same arbitrary reference frame, 2D pose differencing is required to extract the measurements required by the motion model (Section \ref{sec:motion_model}).
 Suppose we have two consecutive pose readings (expressed in the same frame) at timestep $k-1$ and $k$.
@@ -16,17 +18,18 @@ Instead of keeping track of particle weights, we keep track of the log weights.
 Then \eqref{eq:pzx_indep} becomes
 \begin{align}
   \log P(\mbf{z} | \mbf{x}) &= \sum_{i=1}^{180} \log P(z_i | \mbf{x}) \\
-  \log P(\mbf{z} | \mbf{x}) &= - \sum_{i=1}^{180} \frac{\left( z_i - h(\mbf{x}, \theta_i, \mbf{x}) \right)^2}{\sigma_{\text{hit}}^2}
+  \log P(\mbf{z} | \mbf{x}) &= - \sum_{i=1}^{180} \frac{\left( z_i - h(\mbf{x}, \theta_i, \mbf{m}) \right)^2}{\sigma_{\text{hit}}^2}
 \end{align}
-Normalization of log weights can be done by subtracting the log of the sum of all regular weights from each particle's log weight.
+Normalization of log weights can be done by subtracting the log of the sum of all regular weights from each particle's log weight. This slightly complicates the resampling step where we want the actual probabilities, so we exponentiate the log probabilities for this one step and ignore particles if their weight is lower than numerical precision.
+
+\subsection{Weight Updates during Process Updates}
+
+One recurring issue with our baseline implementation was that particles would sometimes leave the hallways and effectively get trapped in infeasible parts of the map. Although the measurement model does down-weight any particles that leave the hallways due to inconsistencies in the observations, this did not appear to be a reliable way of keeping particles in the hallways. In some cases, the ``lost particles" actually had higher weights than the others, causing the filter to converge to those locations.
+To resolve this issue, we added a step to the process update where the weight on each particle is multiplied by the probability that its current location is not occupied. As a result, particles that start drifting into walls while applying the odometry data are quickly down-weighted, allowing the feasible particles to dominate.
+
 
 \subsection{Parameter Tuning}
-Number of particles
 
-$\sigma_{\Delta x}$, $\sigma_{\Delta y}$, $\sigma_{\Delta \psi}$
+To control the performance of the filter, we considered several tuning parameters: the number of particles used, the odometry uncertainty ($\sigma_{\Delta x}$, $\sigma_{\Delta y}$, $\sigma_{\Delta \psi}$), the laser range uncertainty ($\sigma_\text{hit}$), the probability threshold for determining whether a cell is considered occupied, the ray tracing step size, and the max range of the laser.
 
-$\sigma_\text{hit}$
-
-cell full and empty probability thresholds
-
-laser max range
+We found that with around 10,000 particles, we could get reasonable performance with low odometry uncertainties $(\sim0.02 \text{m}, \sim0.03 \text{rad})$ and a very high laser variance $(\sim200)$. Varying the cell full threshold between 0.5 and 0.9 did not change much, since the walls of the environment are given by sharp transitions to $p$(occupied) = 1.0. We set the ray trace step size to 0.5 m and the laser max range to 50 m. Decreasing these parameters caused the particles to collapse faster, likely due to decreasing the weights of any particles that obtained measurement outliers. However, this rapid convergence often led to the particles clustering incorrectly (as determined by odd behavior over the remainder of the trial).

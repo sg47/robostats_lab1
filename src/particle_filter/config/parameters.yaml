@@ -19,7 +19,7 @@ frame_id:
   odom: odom
   laser: laser
 files:
-  data: ascii-robotdata5.log #robotdata1.log
+  data: ascii-robotdata2.log #robotdata1.log
   map: wean.dat
   #path: /home/johnyao/Dropbox/Graduate_Coursework/RoboStats/robostats_lab1/
   path: /home/vishnu/Documents/RoboStats/robostats_lab1/
