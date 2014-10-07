@@ -14,6 +14,10 @@
                    $\theta_i$ & laser beam heading angle relative to the robot body +$x$ axis, $\theta_1 \approx -\frac{\pi}{2}$, $\theta_{180} \approx \frac{\pi}{2}$
 \end{tabular}
 
+\subsection{Initialization}
+The particles are uniformly distributed across the regions of the map that have an occupancy probability lower than a user-defined threshold.
+All particle weights are initially equal.
+
 \subsection{Motion Model}
 \label{sec:motion_model}
 An odometry measurement represents the incremental motion of the robot from $t_k$ to $t_{k+1}$, expressed in the robot body frame at $t_k$.
