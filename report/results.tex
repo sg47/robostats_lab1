@@ -2,9 +2,9 @@
 
 \subsection{Dataset 1: \texttt{robotdata1.log}}
 
-Figure~\ref{fig:Screenshot-video_log1-10k_good} shows snapshots from a run using the first data log. The particles start spread across the map but are able to converge to a single cluster in a reasonable amount of time. The motion of this cluster, including changing directions twice in the hallway and ending in the room, is consistent with \texttt{robotmovie1.gif}, indicating the particle filter was able to accurately localize the robot. Total runtime was around 25 minutes.
+Figure~\ref{fig:Screenshot-video_log1-10k_good} shows snapshots from a run using the first data log. The particles start spread across the map but are able to converge to a single cluster in a reasonable amount of time. The motion of this cluster, including changing directions twice in the hallway and ending in the room, is consistent with \texttt{robotmovie1.gif}, indicating the particle filter was able to accurately localize the robot. Total runtime was around 25 minutes.\\ Video is available here: \url{https://www.youtube.com/watch?v=DxhAmjijvzI}
 
-\begin{figure}
+\begin{figure}[h]
 \centering
 \begin{subfigure}[b]{0.49\textwidth}
 \includegraphics[width=\linewidth]{figures/Screenshot-video_log1-10k_good-1}
@@ -35,7 +35,9 @@ Figure~\ref{fig:Screenshot-video_log1-10k_good} shows snapshots from a run using
 
 \subsection{Dataset 2: \texttt{ascii-robotdata5.log}}
 
-Figure~\ref{fig:Screenshot-video_log5-10k_goodenough} shows a few snapshots from a run using the fifth data log. Again, the particles converge to one cluster reasonably quickly and traverse the hallway. However, we noticed the cluster seems to overshoot when making the turn, leading to many particles being constrained by the wall, and consequently down-weighted. This problem seems to resolve itself though, as the particles are able to complete the turn. Though there was no ground truth provided for this set, the motion of the final cluster of particles seems to be consistent with the odometry data (Fig.~\ref{fig:log5odom}). Total runtime was around 35 minutes.
+Figure~\ref{fig:Screenshot-video_log5-10k_goodenough} shows a few snapshots from a run using the fifth data log. Again, the particles converge to one cluster reasonably quickly and traverse the hallway. However, we noticed the cluster seems to overshoot when making the turn, leading to many particles being constrained by the wall, and consequently down-weighted. This problem seems to resolve itself though, as the particles are able to complete the turn. Though there was no ground truth provided for this set, the motion of the final cluster of particles seems to be consistent with the odometry data (Fig.~\ref{fig:log5odom}). Total runtime was around 35 minutes.\\
+Video is available here:  \url{https://www.youtube.com/watch?v=AgGZ6cR-dyk}
+
 
 \begin{figure}
 \centering
